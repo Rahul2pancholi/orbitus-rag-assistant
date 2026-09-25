@@ -1,0 +1,16 @@
+Northwind Cloud - Access and Secrets Security Policy
+
+Multi-factor authentication
+MFA is mandatory for all employees on email, SSO, the AWS console, GitHub and PagerDuty. Hardware security keys are required for anyone with production administrator access.
+
+Credentials and secrets
+Long-lived AWS access keys must be rotated at least every 90 days; engineers should prefer short-lived credentials through AWS IAM Identity Center. Secrets must be stored in AWS Secrets Manager or SSM Parameter Store and must never be committed to Git. A secret that is committed by mistake must be treated as compromised and rotated within 4 hours.
+
+Production access
+Standing access to production is limited to the SRE team. Other engineers request just-in-time access through the access portal; grants expire after 8 hours and every grant is logged for audit.
+
+Offboarding
+All access for a departing employee must be revoked within 24 hours of their last working day. Their manager is responsible for filing the offboarding ticket.
+
+Reporting
+Suspected security incidents must be reported immediately in #security and are treated as SEV1 until triaged.

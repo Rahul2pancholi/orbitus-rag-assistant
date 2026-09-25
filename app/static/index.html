@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operations Assistant</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  form { display: flex; gap: .5rem; }
+  input { flex: 1; padding: .6rem; font: inherit; border: 1px solid #bbb; border-radius: 6px; }
+  button { padding: .6rem 1rem; font: inherit; border: 0; border-radius: 6px; background: #0b7a75; color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; }
+  .answer { white-space: pre-wrap; background: #f4f7f7; padding: 1rem; border-radius: 6px; margin-top: 1rem; }
+  .status { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
+  .error { color: #b00020; }
+  details { border: 1px solid #ddd; border-radius: 6px; padding: .5rem .75rem; margin: .4rem 0; }
+  details.unused { opacity: .55; }
+  summary { cursor: pointer; font-size: 14px; }
+  .chunk { white-space: pre-wrap; font-size: 13px; color: #333; }
+  .upload { display: flex; gap: .5rem; align-items: center; margin: 1rem 0 1.5rem; padding: .75rem; border: 1px dashed #bbb; border-radius: 6px; font-size: 14px; }
+  .upload input { flex: 1; border: 0; padding: 0; }
+  .ok { color: #0b7a75; }
+  .examples button { background: #e7efef; color: #0b4f4c; font-size: 13px; margin: .2rem .2rem 0 0; }
+</style>
+</head>
+<body>
+<h1>Operations Assistant</h1>
+<p>Ask about the ingested operations documents. Answers cite their sources.</p>
+<form id="up" class="upload">
+  <input id="file" type="file" accept=".pdf,.txt,.md" required>
+  <button id="ub">Upload</button>
+  <span id="umsg"></span>
+</form>
+<form id="f">
+  <input id="q" maxlength="1000" placeholder="e.g. Who must be paged for a SEV1 incident?" required>
+  <button id="b">Ask</button>
+</form>
+<div class="examples" id="ex"></div>
+<div id="out"></div>
+<script>
+const examples = [
+  "What is the response time target for a SEV1 incident?",
+  "What caused the March 2026 database outage?",
+  "How often must access keys be rotated?",
+  "Can I deploy to production on a Friday afternoon?",
+  "What is the company's parental leave policy?",
+];
+const ex = document.getElementById("ex");
+for (const e of examples) {
+  const b = document.createElement("button");
+  b.type = "button"; b.textContent = e;
+  b.onclick = () => { document.getElementById("q").value = e; ask(e); };
+  ex.appendChild(b);
+}
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+
+async function ask(question) {
+  const out = document.getElementById("out"), btn = document.getElementById("b");
+  out.replaceChildren(el("p", "status", "Thinking…")); btn.disabled = true;
+  try {
+    const res = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }) });
+    const data = await res.json();
+    out.replaceChildren();
+    if (!res.ok) {
+      const msg = data.error || (data.detail && data.detail[0] && data.detail[0].msg) || "Request failed";
+      out.appendChild(el("p", "error", msg)); return;
+    }
+    out.appendChild(el("p", "status", "Status: " + data.status));
+    out.appendChild(el("div", "answer", data.answer));
+    if (data.sources.length) {
+      out.appendChild(el("h3", null, "Sources"));
+      const ul = el("ul");
+      data.sources.forEach(s => ul.appendChild(el("li", null, `${s.source} — page ${s.pages.join(", ")}`)));
+      out.appendChild(ul);
+    }
+    out.appendChild(el("h3", null, "Retrieved chunks"));
+    data.retrieved.forEach((c, i) => {
+      const d = el("details", c.used ? "" : "unused");
+      d.appendChild(el("summary", null, `${c.used ? "[" + (i + 1) + "]" : "(below threshold)"} ${c.source} p.${c.page} — score ${c.score}`));
+      d.appendChild(el("div", "chunk", c.text));
+      out.appendChild(d);
+    });
+  } catch (err) {
+    out.replaceChildren(el("p", "error", "Network error: " + err.message));
+  } finally { btn.disabled = false; }
+}
+document.getElementById("up").onsubmit = async e => {
+  e.preventDefault();
+  const file = document.getElementById("file").files[0], btn = document.getElementById("ub"), msg = document.getElementById("umsg");
+  if (!file) return;
+  msg.className = "status"; msg.textContent = "Uploading and indexing…"; btn.disabled = true;
+  try {
+    const body = new FormData(); body.append("file", file);
+    const res = await fetch("/api/documents", { method: "POST", body });
+    const data = await res.json();
+    if (!res.ok) { msg.className = "error"; msg.textContent = data.error || "Upload failed"; return; }
+    msg.className = "ok";
+    msg.textContent = data.ingested.length
+      ? `Indexed ${file.name} (${data.ingested[0].chunks} chunks). You can ask about it now.`
+      : `${file.name} is already indexed (unchanged).`;
+  } catch (err) {
+    msg.className = "error"; msg.textContent = "Network error: " + err.message;
+  } finally { btn.disabled = false; }
+};
+document.getElementById("f").onsubmit = e => { e.preventDefault(); ask(document.getElementById("q").value); };
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "app": "uv run --group infra python infra/app.py",
+  "context": {
+    "tenant_id": "demo"
+  }
+}
