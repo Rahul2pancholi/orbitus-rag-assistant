@@ -143,4 +143,4 @@ tests/           offline tests (fake embedder)
 
 ## Time spent
 
-_TODO: fill in._
+About 2 hours.
