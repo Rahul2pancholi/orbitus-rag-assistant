@@ -97,7 +97,7 @@ tests/           offline tests (fake embedder)
 - **A JSON index in S3 with exact search, instead of a vector database.** For a small document set, exact cosine search in memory takes under a millisecond and has nothing to operate. Each tenant is a separate object, which gives physical isolation. The code only touches the store through `IndexStore`, so moving to S3 Vectors or OpenSearch changes one module (see Scaling).
 - **Two "not found" checks.** (1) A low score floor: if nothing is even loosely related, refuse without calling the LLM (saves cost). (2) The prompt tells the model to reply `NOT_FOUND` when the passages don't support an answer, and that is the real decision. A single score threshold wasn't enough on a real uploaded NDA: "what do you know about nda" scored 0.55 (the PDF says "nondisclosure agreement", never "NDA"), while an off-topic "parental leave" question scored 0.64. With the floor at 0.5, the local model correctly refused 4 of 4 off-topic questions and answered 4 of 4 on-topic ones. The Titan floor (0.25) is only a starting point and must be re-calibrated once Bedrock access exists.
 - **Chunking per page, aligned to sentences, 600 chars with 120 overlap.** Every chunk has an exact page to cite, and chunks read cleanly when shown as evidence. Trade-off: a passage that spans a page break is split.
-- **Failure handling.** Bedrock clients use adaptive retries and timeouts. If the LLM fails, the user gets the relevant passages (`status: degraded`) instead of an error page. One bad file does not stop the rest of an ingestion run. The index is saved in one atomic step, and the S3 bucket is versioned.
+- **Failure handling.** Every LLM call has a timeout (Bedrock clients also retry with adaptive backoff). If the LLM fails, the user gets the relevant passages (`status: degraded`) instead of an error page. One bad file does not stop the rest of an ingestion run. The index is saved in one atomic step, and the S3 bucket is versioned.
 
 ## Discussion prep
 
@@ -107,7 +107,7 @@ tests/           offline tests (fake embedder)
 
 **Duplicates and idempotency.** Implemented: each file is fingerprinted by sha256, unchanged files are skipped, changed files have their old chunks replaced, and chunk IDs are content hashes. At scale, add DynamoDB for per-document state, conditional writes, and SQS deduplication IDs.
 
-**LLM fails or times out.** Implemented: 30 s read timeout, adaptive retries, then degraded mode showing the passages. Next: a circuit breaker, a fallback model ID, and streaming so users see progress.
+**LLM fails or times out.** Implemented: 30 s timeout, then degraded mode showing the passages (Bedrock clients also retry with adaptive backoff; the Groq client does not retry). Next: retries with backoff for Groq, a circuit breaker, a fallback model, and streaming so users see progress.
 
 **Secrets.** Implemented: the only secret (Groq API key) is an SSM Parameter Store SecureString (KMS-encrypted), readable only by the Lambda role, fetched once per cold start. `.env` is git-ignored. S3 access comes from the IAM role. With Bedrock there would be no secret at all. Rotation: put a new version and the next cold start picks it up.
 

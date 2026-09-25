@@ -1,7 +1,7 @@
 [project]
 name = "orbitus-rag-assistant"
 version = "0.1.0"
-description = "AI/RAG Operations Assistant - FastAPI + Bedrock + S3, with a fully local mode"
+description = "AI/RAG Operations Assistant - FastAPI on Lambda + S3, with a fully local mode"
 requires-python = ">=3.12,<3.14"
 # Runtime deps shipped to Lambda. Keep this list small: it is the deployment package.
 dependencies = [

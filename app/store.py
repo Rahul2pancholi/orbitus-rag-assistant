@@ -7,7 +7,7 @@ Layout (identical for a local directory and for S3):
 Isolation boundary: an index object only ever holds one tenant's chunks, and
 search runs over a single loaded index, so a query cannot return another
 tenant's content even if a filter is forgotten. In AWS the tenant prefix is also
-the IAM boundary (the Lambda role is only granted s3:GetObject on its prefix).
+the IAM boundary (the Lambda role can only read/write objects under its own prefix).
 
 Brute-force cosine search over an in-memory list is deliberate: it is exact and
 fast for thousands of chunks. See README "Scaling" for the path to S3 Vectors /
